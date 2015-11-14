@@ -519,14 +519,14 @@ void loop()
   if(Serial.available())
   {
     char received;
-    while (received != 'o')
+    while (received != '\r')
     {
       if(Serial.available())
       {
         received = Serial.read();
         if (received == '\n' || received == ' ')
         {}
-        else if (received == ',' || received == 'o')
+        else if (received == ',' || received == '\r')
         {
           comm.push_back(inByte);
           inByte = "";
