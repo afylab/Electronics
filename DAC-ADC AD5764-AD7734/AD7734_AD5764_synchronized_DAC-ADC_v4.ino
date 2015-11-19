@@ -15,6 +15,19 @@ int err=30;
 const int Noperations = 11;
 String operations[Noperations] = {"NOP", "SET", "GET_ADC", "RAMP1", "RAMP2", "BUFFER_RAMP", "RESET", "TALK", "CONVERT_TIME", "*IDN?", "*RDY?"};
 
+namespace std {
+  void __throw_bad_alloc()
+  {
+    Serial.println("Unable to allocate memory");
+  }
+
+  void __throw_length_error( char const*e )
+  {
+    Serial.print("Length Error :");
+    Serial.println(e);
+  }
+}
+
 void setup()
 {
   Serial.begin(115200);
