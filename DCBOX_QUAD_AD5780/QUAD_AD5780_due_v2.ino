@@ -10,6 +10,19 @@ int dac[4] = {4, 10, 12, 52};
 const int Noperations = 8;
 String operations[Noperations] = {"NOP", "INITIALIZE", "SET", "GET_DAC", "RAMP1", "RAMP2", "*IDN?", "RDY?"}; //NOP, *IDN?, *RDY? RAMP
 
+namespace std {
+  void __throw_bad_alloc()
+  {
+    Serial.println("Unable to allocate memory");
+  }
+
+  void __throw_length_error( char const*e )
+  {
+    Serial.print("Length Error :");
+    Serial.println(e);
+  }
+}
+
 void setup() 
 {
   Serial.begin(115200);
@@ -88,7 +101,7 @@ void intToThreeBytes(int decimal, byte *DB1, byte *DB2, byte *DB3)
   *DB3 = (byte)((decimal & 0x3F) << 2);
 }
 
-void setValue(int channelDAC, float voltage)
+float setValue(int channelDAC, float voltage)
 {
   byte b1;
   byte b2;
@@ -103,6 +116,8 @@ void setValue(int channelDAC, float voltage)
   SPI.transfer(b3); //LS 8 data bits, DAC2
   digitalWrite(channelDAC,HIGH);
   digitalWrite(data, LOW);
+
+  return threeByteToVoltage(b1,b2,b3);
 }
 
 void autoRamp1(std::vector<String> DB)
@@ -115,9 +130,7 @@ void autoRamp1(std::vector<String> DB)
   for (int j=0; j<nSteps;j++)
   {
     int timer = micros();
-    digitalWrite(data,HIGH);
     writeDAC(dacChannel, v1+(v2-v1)*j/(nSteps-1));
-    digitalWrite(data,LOW);
     while(micros() <= timer + DB[5].toInt());
   }
 }
@@ -137,32 +150,30 @@ void autoRamp2(std::vector<String> DB)
   for (int j=0; j<nSteps;j++)
   {
     int timer = micros();
-    digitalWrite(data,HIGH);
     writeDAC(dacChannel1, vi1+(vf1-vi1)*j/(nSteps-1));
     writeDAC(dacChannel2, vi2+(vf2-vi2)*j/(nSteps-1));
     while(micros() <= timer + DB[8].toInt());
-    digitalWrite(data,LOW);
   }
 }
 
-void writeDAC(int dacChannel, float voltage)
+float writeDAC(int dacChannel, float voltage)
 {
   switch( dacChannel )//uses the first byte choose what to do.  0x00: set DACS with asynchronous update
   {
     case 0: // Write DAC;
-    setValue(dac[0],voltage);
+    return setValue(dac[0],voltage);
     break;
 
     case 1:
-    setValue(dac[1],voltage);
+    return setValue(dac[1],voltage);
     break;
 
     case 2:
-    setValue(dac[2],voltage);
+    return setValue(dac[2],voltage);
     break;
 
     case 3:
-    setValue(dac[3],voltage);
+    return setValue(dac[3],voltage);
     break;
 
     default:
@@ -262,7 +273,18 @@ void router(std::vector<String> DB)
     break;
 
     case 2:
-    writeDAC(DB[1].toInt(),DB[2].toFloat());
+    if(DB[2].toFloat() < -10 || DB[2].toFloat() > 10)
+    {
+      Serial.println("VOLTAGE_OVERRANGE");
+      break;
+    }
+    float v; 
+    v = writeDAC(DB[1].toInt(),DB[2].toFloat());
+    Serial.print("DAC ");
+    Serial.print(DB[1]);
+    Serial.print(" UPDATED TO ");
+    Serial.print(v,5);
+    Serial.println("V");
     break;
 
     case 3:
