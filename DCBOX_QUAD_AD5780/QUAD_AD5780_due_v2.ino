@@ -242,7 +242,7 @@ void normalMode()
 
 void ID()
 {
-  Serial.println("DCBOX_QUAD_AD5780(DOGWOOD)");
+  Serial.println("DCBOX_QUAD_AD5780(CAOBA)");
 }
 
 void RDY()
