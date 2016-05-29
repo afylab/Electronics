@@ -19,7 +19,7 @@ int sysclock  = clockmult*refclock*(pow(10,6));
 
 void setup()
 {
-  Serial.begin(19200);
+  Serial.begin(115200);
   pinMode(led1   ,OUTPUT);
   pinMode(led2   ,OUTPUT);
   pinMode(led3   ,OUTPUT);
