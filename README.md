@@ -1,3 +1,3 @@
 # Electronics
 
-For further information visit [openDACs] (opendacs.com)
+For further information visit [openDACs] (opendacs.com).
