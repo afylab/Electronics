@@ -382,6 +382,8 @@ void bufferRamp(std::vector<String> DB)
   int NchannelsADC = channelsADC.length();
   std::vector<float> vi;
   std::vector<float> vf;
+  float v_min = DB[NchannelsDAC*2+6].toFloat();
+  float v_max = DB[NchannelsDAC*2+7].toFloat();
   for(int i = 3; i < NchannelsDAC+3; i++)
   {
     vi.push_back(DB[i].toFloat());
@@ -396,7 +398,16 @@ void bufferRamp(std::vector<String> DB)
     digitalWrite(data,HIGH);
     for(int i = 0; i < NchannelsDAC; i++)
     {
-      writeDAC(channelsDAC[i]-'0',vi[i]+(vf[i]-vi[i])*j/(nSteps-1));
+      float v=vi[i]+(vf[i]-vi[i])*j/(nSteps-1);
+      if(v<v_min)
+      {
+        v=v_min;
+      }
+      else if(v>v_max)
+      {
+        v=v_max;
+      }
+      writeDAC(channelsDAC[i]-'0',v);
     }
     delay(DB[NchannelsDAC*2+4].toInt());
     for(int i = 0; i < NchannelsADC; i++)
