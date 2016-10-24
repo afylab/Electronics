@@ -3,7 +3,7 @@
 
 /////////////CHANGELOG//////////////////
 //v3- 5/20/2016  If a DAC does not intilizies, normalmode() is recall until everysingle dac is initilized. 
-//    6/15/2016  Initializes dacs durin power up
+//v4-  6/15/2016  Initializes dacs durin power up
 /////////////////////////////////
 
 #include <vector>
@@ -235,6 +235,7 @@ void readDAC(int channelDAC)
 
 void normalMode()
 {
+  int attemps = 0;
   for( int i = 0; i <= 3; i++)
   {
     int o;
@@ -257,9 +258,15 @@ void normalMode()
     o = SPI.transfer(0);
     digitalWrite(dac[i],HIGH);
 
-    if (o!=2)
+    if (attemps>=5)
+    {
+      Serial.print("ERROR INITIALIZING DAC");
+      Serial.println(i);
+    }
+    else if (o!=2)
     {
       i=i-1;
+      attemps++;
     }
   }
 }
@@ -349,7 +356,6 @@ void loop()
   {
     normalMode();
     initialized = 1;
-    Serial.println("INITIALIZATION COMPLETE");
   }
 
   
