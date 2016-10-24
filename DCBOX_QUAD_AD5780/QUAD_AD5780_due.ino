@@ -3,6 +3,7 @@
 
 /////////////CHANGELOG//////////////////
 //v3- 5/20/2016  If a DAC does not intilizies, normalmode() is recall until everysingle dac is initilized. 
+//v4-  6/15/2016  Initializes dacs durin power up
 /////////////////////////////////
 
 #include <vector>
@@ -13,6 +14,7 @@ int data = 32;
 int dac[4] = {4, 10, 12, 52};
 const int Noperations = 8;
 String operations[Noperations] = {"NOP", "INITIALIZE", "SET", "GET_DAC", "RAMP1", "RAMP2", "*IDN?", "RDY?"}; //NOP, *IDN?, *RDY? RAMP
+int initialized = 0;
 
 namespace std {
   void __throw_bad_alloc()
@@ -66,6 +68,13 @@ int threeByteToInt(byte DB1,byte DB2, byte DB3) // This gives a 16 bit integer (
   return ((int)(((((DB1&15)<<8)| DB2)<<8)|DB3)>>2);
 }
 
+void intToThreeBytes(int decimal, byte *DB1, byte *DB2, byte *DB3)
+{
+  *DB1 = (byte)((decimal >> 14) | 16);
+  *DB2 = (byte)((decimal >> 6) & 0xFF);
+  *DB3 = (byte)((decimal & 0x3F) << 2);
+}
+
 float threeByteToVoltage(byte DB1, byte DB2, byte DB3)
 {
   int decimal;
@@ -98,13 +107,6 @@ int voltageToDecimal(float voltage, byte *DB1, byte *DB2, byte *DB3)
   intToThreeBytes(decimal, DB1, DB2, DB3);
 }
 
-void intToThreeBytes(int decimal, byte *DB1, byte *DB2, byte *DB3)
-{
-  *DB1 = (byte)((decimal >> 14) | 16);
-  *DB2 = (byte)((decimal >> 6) & 0xFF);
-  *DB3 = (byte)((decimal & 0x3F) << 2);
-}
-
 float setValue(int channelDAC, float voltage)
 {
   byte b1;
@@ -122,6 +124,31 @@ float setValue(int channelDAC, float voltage)
   digitalWrite(data, LOW);
 
   return threeByteToVoltage(b1,b2,b3);
+}
+
+float writeDAC(int dacChannel, float voltage)
+{
+  switch( dacChannel )//uses the first byte choose what to do.  0x00: set DACS with asynchronous update
+  {
+    case 0: // Write DAC;
+    return setValue(dac[0],voltage);
+    break;
+
+    case 1:
+    return setValue(dac[1],voltage);
+    break;
+
+    case 2:
+    return setValue(dac[2],voltage);
+    break;
+
+    case 3:
+    return setValue(dac[3],voltage);
+    break;
+
+    default:
+    break;
+  }
 }
 
 void autoRamp1(std::vector<String> DB)
@@ -157,31 +184,6 @@ void autoRamp2(std::vector<String> DB)
     writeDAC(dacChannel1, vi1+(vf1-vi1)*j/(nSteps-1));
     writeDAC(dacChannel2, vi2+(vf2-vi2)*j/(nSteps-1));
     while(micros() <= timer + DB[8].toInt());
-  }
-}
-
-float writeDAC(int dacChannel, float voltage)
-{
-  switch( dacChannel )//uses the first byte choose what to do.  0x00: set DACS with asynchronous update
-  {
-    case 0: // Write DAC;
-    return setValue(dac[0],voltage);
-    break;
-
-    case 1:
-    return setValue(dac[1],voltage);
-    break;
-
-    case 2:
-    return setValue(dac[2],voltage);
-    break;
-
-    case 3:
-    return setValue(dac[3],voltage);
-    break;
-
-    default:
-    break;
   }
 }
 
@@ -233,6 +235,7 @@ void readDAC(int channelDAC)
 
 void normalMode()
 {
+  int attemps = 0;
   for( int i = 0; i <= 3; i++)
   {
     int o;
@@ -255,9 +258,15 @@ void normalMode()
     o = SPI.transfer(0);
     digitalWrite(dac[i],HIGH);
 
-    if (o!=2)
+    if (attemps>=5)
+    {
+      Serial.print("ERROR INITIALIZING DAC");
+      Serial.println(i);
+    }
+    else if (o!=2)
     {
       i=i-1;
+      attemps++;
     }
   }
 }
@@ -342,6 +351,14 @@ void loop()
   Serial.flush();
   String inByte = "";
   std::vector<String> comm;
+
+  if(initialized == 0)
+  {
+    normalMode();
+    initialized = 1;
+  }
+
+  
   if(Serial.available())
   {
     char received;
