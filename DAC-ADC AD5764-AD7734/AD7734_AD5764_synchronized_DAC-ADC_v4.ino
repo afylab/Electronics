@@ -125,7 +125,25 @@ std::vector<int> listOfChannels(byte DB) // Returns the list of channels to writ
 
 void writeADCConversionTime(std::vector<String> DB)
 {
-  int adcChannel=DB[1].toInt();
+
+  int adcChannel;
+  switch(DB[1].toInt()){
+    case 0:
+    adcChannel = 1;
+    break;
+    case 1:
+    adcChannel = 3;
+    break;
+    case 2:
+    adcChannel = 0;
+    break;
+    case 3:
+    adcChannel = 2;
+    break;
+
+    default:  
+    break;
+  }
   byte cr;
 
   byte fw = ((byte)((DB[2].toInt()*6.144-249)/128))|128;
