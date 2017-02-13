@@ -158,7 +158,62 @@ void writeADCConversionTime(std::vector<String> DB)
   Serial.println(convtime);
 }
 
+float map2(float x, long in_min, long in_max, float out_min, float out_max)
+{
+  return (x - in_min) * (out_max - out_min) / (in_max - in_min) + out_min;
+}
 
+int twoByteToInt(byte DB1,byte DB2) // This gives a 16 bit integer (between +/- 2^16)
+{
+  return ((int)((DB1<<8)| DB2));
+}
+
+
+void intToTwoByte(int s, byte * DB1, byte * DB2)
+{
+    *DB1 = ((byte)((s>>8)&0xFF));
+    *DB2 = ((byte)(s&0xFF)); 
+}
+
+
+float twoByteToVoltage(byte DB1, byte DB2)
+{
+  int decimal;
+  float voltage;
+
+  decimal = twoByteToInt(DB1,DB2);
+
+  if (decimal <= 32767)
+  {
+    voltage = decimal*10.0/32767;
+  }
+  else
+  {
+    voltage = -(65536-decimal)*10.0/32768;
+  }
+  return voltage;
+}
+
+
+void voltageToTwoByte(float voltage, byte * DB1, byte * DB2)
+{
+  int decimal;
+  if (voltage > 10 || voltage < -10)
+  {
+    *DB1 = 128;
+    *DB2 = 0;
+    error();
+  }  
+  else if (voltage >= 0)
+  {
+    decimal = voltage*32767/10;
+  }
+  else
+  {
+    decimal = voltage*32768/10 + 65536;
+  }
+  intToTwoByte(decimal, DB1, DB2);
+}
 
 void getSingleReading(int adcchan)
 {
@@ -217,64 +272,6 @@ void readADC(byte DB)
   }
 }
 
-
-float map2(long x, long in_min, long in_max, float out_min, float out_max)
-{
-  return (x - in_min) * (out_max - out_min) / (in_max - in_min) + out_min;
-}
-
-int twoByteToInt(byte DB1,byte DB2) // This gives a 16 bit integer (between +/- 2^16)
-{
-  return ((int)((DB1<<8)| DB2));
-}
-
-
-void intToTwoByte(int s, byte * DB1, byte * DB2)
-{
-    *DB1 = ((byte)((s>>8)&0xFF));
-    *DB2 = ((byte)(s&0xFF)); 
-}
-
-
-float twoByteToVoltage(byte DB1, byte DB2)
-{
-  int decimal;
-  float voltage;
-
-  decimal = twoByteToInt(DB1,DB2);
-
-  if (decimal <= 32767)
-  {
-    voltage = decimal*10.0/32767;
-  }
-  else
-  {
-    voltage = -(65536-decimal)*10.0/32768;
-  }
-  return voltage;
-}
-
-
-void voltageToTwoByte(float voltage, byte * DB1, byte * DB2)
-{
-  int decimal;
-  if (voltage > 10 || voltage < -10)
-  {
-    *DB1 = 128;
-    *DB2 = 0;
-    error();
-  }  
-  else if (voltage >= 0)
-  {
-    decimal = voltage*32767/10;
-  }
-  else
-  {
-    decimal = voltage*32768/10 + 65536;
-  }
-  intToTwoByte(decimal, DB1, DB2);
-}
-
 float dacDataSend(int ch, float voltage)
 {
   byte b1;
@@ -289,6 +286,103 @@ float dacDataSend(int ch, float voltage)
   return twoByteToVoltage(b1, b2);
 }
 
+float writeDAC(int dacChannel, float voltage)
+{
+  switch(dacChannel)
+  {
+    case 0:
+    return dacDataSend(2,voltage);
+    break;
+
+    case 1:
+    return dacDataSend(0,voltage);
+    break;
+
+    case 2:
+    return dacDataSend(3,voltage);
+    break;
+
+    case 3:
+    return dacDataSend(1,voltage);
+    break;
+
+    default:
+    break;
+  }
+}
+
+void readingRampAvg(int adcchan, byte b1, byte b2, byte * o1, byte * o2,int count,int nReadings)
+{
+  Serial.flush();
+  int statusbyte=0;
+  int ovr;
+  byte db1;
+  byte db2;
+  float sum=0;
+  float avg;
+  bool toSend = true;
+  if(adcchan <= 3)
+  {
+    for(int i = 1; i<=nReadings; i++)
+    {
+      SPI.transfer(adc,0x38+adcchan);   // Indicates comm register to access mode register with channel
+      SPI.transfer(adc,0x48);           // Indicates mode register to start single convertion in dump mode
+      if (count>0 && toSend)
+      {
+        Serial.write(b1);                 // Sends previous reading while it is waiting for new reading
+        Serial.write(b2);
+        toSend = false;
+      }
+      waitDRDY();                       // Waits until convertion finishes
+      SPI.transfer(adc,0x48+adcchan);   // Indcates comm register to read data channel data register
+      statusbyte=SPI.transfer(adc,0);   // Reads Channel 'ch' status
+      db1=SPI.transfer(adc,0);           // Reads first byte
+      db2=SPI.transfer(adc,0);           // Reads second byte
+      ovr=statusbyte&1;
+      if (ovr){break;}
+      int decimal = twoByteToInt(db1,db2);
+      float voltage = map2(decimal, 0, 65536, -10.0, 10.0);
+      sum += voltage;
+    }
+    if(ovr)
+    {
+      *o1=128;
+      *o2=0;
+    }
+    else
+    {
+      avg = sum/nReadings;
+      int decimal = map2(avg, -10.0, 10.0, 0, 65536);
+      intToTwoByte(decimal, &db1, &db2);
+      *o1=db1;
+      *o2=db2;
+    }
+  }
+}
+
+void rampRead(byte DB,byte b1, byte b2, byte * o1, byte * o2, int count,int nReadings )
+{
+  int adcChannel=DB;
+  switch (adcChannel)
+  {
+    case 0:
+    readingRampAvg(1, b1 , b2, o1, o2,count,nReadings);
+    break;
+    case 1:
+    readingRampAvg(3, b1 , b2, o1, o2,count,nReadings);
+    break;
+    case 2:
+    readingRampAvg(0, b1 , b2, o1, o2,count,nReadings);
+    break;
+    case 3:
+    readingRampAvg(2, b1 , b2, o1, o2,count,nReadings);
+    break;
+  
+    default:  
+    break;
+  }
+}
+
 void bufferRamp(std::vector<String> DB)
 {
   String channelsDAC = DB[1];
@@ -297,6 +391,8 @@ void bufferRamp(std::vector<String> DB)
   int NchannelsADC = channelsADC.length();
   std::vector<float> vi;
   std::vector<float> vf;
+  float v_min = -10.0;
+  float v_max = 10.0;
   for(int i = 3; i < NchannelsDAC+3; i++)
   {
     vi.push_back(DB[i].toFloat());
@@ -305,21 +401,32 @@ void bufferRamp(std::vector<String> DB)
   int nSteps=(DB[NchannelsDAC*2+3].toInt());
   byte b1;
   byte b2;
- 
+  int count =0;
   for (int j=0; j<nSteps;j++)
   {
     digitalWrite(data,HIGH);
     for(int i = 0; i < NchannelsDAC; i++)
     {
-      writeDAC(channelsDAC[i]-'0',vi[i]+(vf[i]-vi[i])*j/(nSteps-1));
+      float v=vi[i]+(vf[i]-vi[i])*j/(nSteps-1);
+      if(v<v_min)
+      {
+        v=v_min;
+      }
+      else if(v>v_max)
+      {
+        v=v_max;
+      }
+      writeDAC(channelsDAC[i]-'0',v);
     }
     delayMicroseconds(DB[NchannelsDAC*2+4].toInt());
     for(int i = 0; i < NchannelsADC; i++)
     {
-      readADC(channelsADC[i]-'0');
+      rampRead(channelsADC[i]-'0', b1, b2, &b1, &b2, count,DB[NchannelsDAC*2+5].toInt());
+      count+=1;
     }
-    
   }
+  Serial.write(b1);
+  Serial.write(b2);
   digitalWrite(data,LOW);
 }
 
@@ -385,31 +492,6 @@ void autoRamp2(std::vector<String> DB)
 //}
 
 
-float writeDAC(int dacChannel, float voltage)
-{
-  switch(dacChannel)
-  {
-    case 0:
-    return dacDataSend(2,voltage);
-    break;
-
-    case 1:
-    return dacDataSend(0,voltage);
-    break;
-
-    case 2:
-    return dacDataSend(3,voltage);
-    break;
-
-    case 3:
-    return dacDataSend(1,voltage);
-    break;
-
-    default:
-    break;
-  }
-}
-
 void dacDataReceive(int ch)
 {
   Serial.flush();
@@ -472,6 +554,7 @@ void debug()
 
 void router(std::vector<String> DB)
 {
+  float v;
   int operation = indexOfOperation(DB[0]);
   switch ( operation )
   {
@@ -485,7 +568,6 @@ void router(std::vector<String> DB)
       Serial.println("VOLTAGE_OVERRANGE");
       break;
     }
-    float v;
     v = writeDAC(DB[1].toInt(),DB[2].toFloat());
     Serial.print("DAC ");
     Serial.print(DB[1]);
@@ -495,7 +577,8 @@ void router(std::vector<String> DB)
     break;
     
     case 2: // Read ADC 
-    readADC(DB[1].toInt());
+    v=readADC(DB[1].toInt());
+    Serial.println(v,4);
     break;
 
 //    case 3: // not working with current shield
