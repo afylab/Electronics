@@ -1,6 +1,6 @@
-//Ardunio *DUE*code for controlling EVAL-AD7734 ADC and EVAL-AD5764 DAC
-//Created by Andrea Young
-//Modified by Carlos Kometter 7/7/2015
+//Ardunio *DUE*code for controlling EVAL-AD7734 ADC and EVAL-AD5780 DAC
+//Andrea Young
+//Carlos Kometter
 #include "SPI.h" // necessary library for SPI communication
 #include <vector>
 int adc=52; //The SPI pin for the ADC
@@ -702,10 +702,6 @@ void router(std::vector<String> DB)
     v=readADC(DB[1].toInt());
     Serial.println(v,4);
     break;
-
-//    case 3: // not working with current shield
-//    readDAC(DB);
-//    break;
 
     case 5:
     autoRamp1(DB);
