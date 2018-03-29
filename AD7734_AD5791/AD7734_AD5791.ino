@@ -13,8 +13,8 @@ int drdy=48; // Data is ready pin on ADC
 int led = 32;
 int data=28;//Used for trouble shooting; connect an LED between pin 28 and GND
 int err=30;
-const int Noperations = 20;
-String operations[Noperations] = {"NOP", "INITIALIZE", "SET", "GET_DAC", "GET_ADC", "RAMP1", "RAMP2", "BUFFER_RAMP", "BUFFER_RAMP_DIS", "RESET", "TALK", "CONVERT_TIME", "*IDN?", "*RDY?", "GET_DUNIT","SET_DUNIT", "ADC_ZERO_SC_CAL", "ADC_CH_ZERO_SC_CAL", "ADC_CH_FULL_SC_CAL", "DAC_CH_CAL"};
+const int Noperations = 21;
+String operations[Noperations] = {"NOP", "INITIALIZE", "SET", "GET_DAC", "GET_ADC", "RAMP1", "RAMP2", "BUFFER_RAMP", "BUFFER_RAMP_DIS", "RESET", "TALK", "CONVERT_TIME", "*IDN?", "*RDY?", "GET_DUNIT","SET_DUNIT", "ADC_ZERO_SC_CAL", "ADC_CH_ZERO_SC_CAL", "ADC_CH_FULL_SC_CAL", "DAC_CH_CAL", "FULL_SCALE"};
 int initialized = 0;
 int delayUnit=0; // 0=microseconds 1=miliseconds
 
@@ -551,7 +551,7 @@ void bufferRamp(std::vector<String> DB)
   digitalWrite(data,LOW);
 }
 
-void bufferRampDis(std::vector<String> DB)
+int bufferRampDis(std::vector<String> DB)
 {
   String channelsDAC = DB[1];
   int NchannelsDAC = channelsDAC.length();
@@ -559,9 +559,10 @@ void bufferRampDis(std::vector<String> DB)
   int NchannelsADC = channelsADC.length();
   int nAdcSteps = DB[NchannelsDAC*2+6].toInt();
   int nSteps=(DB[NchannelsDAC*2+3].toInt());
-  if (!(nSteps % nAdcSteps))
+  if (!((nSteps % nAdcSteps)==0))
   {
     Serial.println("ONLY FACTORS OF TOTAL STEPS ALLOW FOR ADCSTEPS");
+    return 1;
   }
   std::vector<float> vi;
   std::vector<float> vf;
@@ -604,15 +605,21 @@ void bufferRampDis(std::vector<String> DB)
     {
       delayMicroseconds(DB[NchannelsDAC*2+4].toInt());
     }
-    if ((adcCount == nAdcSteps) | firstPoint)
+    if ((adcCount == nAdcSteps) || firstPoint)
     {
       for(int i = 0; i < NchannelsADC; i++)
       {
         rampRead(channelsADC[i]-'0', b1, b2, &b1, &b2, count,DB[NchannelsDAC*2+5].toInt());
         count+=1;
       }
-      firstPoint = false;
-      adcCount=1;
+      if(firstPoint)
+      {
+        firstPoint = false;
+      }
+      else
+      {
+        adcCount=0;
+      }
     }
     adcCount+=1;
     if(Serial.available())
@@ -628,6 +635,7 @@ void bufferRampDis(std::vector<String> DB)
   Serial.write(b1);
   Serial.write(b2);
   digitalWrite(data,LOW);
+  return 0;
 }
 
 
@@ -960,6 +968,12 @@ void router(std::vector<String> DB)
     case 19:
     dac_ch_cal();
     Serial.println("CALIBRATION_FINISHED");
+
+    case 20:
+    DAC_FULL_SCALE = DB[1].toFloat();
+    Serial.println("FULL_SCALE_UPDATED");
+    break;
+    
     default:
     break;
   }
