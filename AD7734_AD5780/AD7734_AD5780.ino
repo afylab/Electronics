@@ -560,11 +560,7 @@ int bufferRampDis(std::vector<String> DB)
   int NchannelsADC = channelsADC.length();
   int nAdcSteps = DB[NchannelsDAC*2+6].toInt();
   int nSteps=(DB[NchannelsDAC*2+3].toInt());
-  if (!((nSteps % nAdcSteps)==0))
-  {
-    Serial.println("ONLY FACTORS OF TOTAL STEPS ALLOW FOR ADCSTEPS");
-    return 1;
-  }
+
   std::vector<float> vi;
   std::vector<float> vf;
   float v_min = -1*DAC_FULL_SCALE;
