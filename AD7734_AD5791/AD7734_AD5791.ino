@@ -87,7 +87,7 @@ void setup()
   
   SPI.setBitOrder(adc,MSBFIRST); //correct order for AD7734.
   SPI.setBitOrder(spi,MSBFIRST); //correct order for AD5764.
-  SPI.setClockDivider(adc,6);  
+  SPI.setClockDivider(adc,7);  
   SPI.setClockDivider(spi,6);  
   SPI.setDataMode(adc,SPI_MODE3); //This should be 3 for the AD7734
   SPI.setDataMode(spi,SPI_MODE1); //This should be 1 for the AD5764

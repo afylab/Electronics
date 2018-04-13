@@ -1,4 +1,4 @@
-//Ardunio *DUE*code for controlling EVAL-AD7734 ADC and EVAL-AD5780 DAC
+//Ardunio *DUE*code for controlling EVAL-AD7734 ADC and EVAL-AD5764 DAC
 //Andrea Young
 //Carlos Kometter
 #include "SPI.h" // necessary library for SPI communication
@@ -78,8 +78,8 @@ void setup()
   
   SPI.setBitOrder(adc,MSBFIRST); //correct order for AD7734.
   SPI.setBitOrder(spi,MSBFIRST); //correct order for AD5764.
-  SPI.setClockDivider(adc,6); // Maximum 20 Mhz for AD7734
-  SPI.setClockDivider(spi,3); // Maximum 30 Mhz for AD5764
+  SPI.setClockDivider(adc,7); // Maximum 12 Mhz for AD7734
+  SPI.setClockDivider(spi,4); // Maximum 21 Mhz for AD5764
   SPI.setDataMode(adc,SPI_MODE3); //This should be 3 for the AD7734
   SPI.setDataMode(spi,SPI_MODE1); //This should be 1 for the AD5764
 
