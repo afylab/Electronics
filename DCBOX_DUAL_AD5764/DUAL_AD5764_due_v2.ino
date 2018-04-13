@@ -11,6 +11,19 @@ int data=48;
 const int Noperations = 7;
 String operations[Noperations] = {"NOP", "SET", "GET_DAC", "RAMP1", "RAMP2", "*IDN?", "*RDY?"};
 
+namespace std {
+  void __throw_bad_alloc()
+  {
+    Serial.println("Unable to allocate memory");
+  }
+
+  void __throw_length_error( char const*e )
+  {
+    Serial.print("Length Error :");
+    Serial.println(e);
+  }
+}
+
 void setup()
 {
   Serial.begin(115200);
@@ -30,7 +43,6 @@ void setup()
   digitalWrite(led,HIGH);
   digitalWrite(data,LOW);
 }
-
 
 void blinker(int s){digitalWrite(data,HIGH);delay(s);digitalWrite(data,LOW);delay(s);}
 
@@ -110,6 +122,78 @@ void voltageToTwoByte(float voltage, byte * DB1, byte * DB2)
     decimal = voltage*32768/10 + 65536;
   }
   intToTwoByte(decimal, DB1, DB2);
+}
+
+
+float setValue(int dacChannel1, int dacChannel2, float v1, float v2)
+{
+  byte b1;
+  byte b2;
+  byte b3;
+  byte b4;
+  digitalWrite(data, HIGH);
+  voltageToTwoByte(v1,&b1,&b2);
+  voltageToTwoByte(v2,&b3,&b4);
+  SPI.transfer(cs,16+dacChannel1,SPI_CONTINUE); // send command byte to DAC2 in the daisy chain.
+  SPI.transfer(cs,b1,SPI_CONTINUE); // MS data bits, DAC2
+  SPI.transfer(cs,b2,SPI_CONTINUE);//LS 8 data bits, DAC2
+  SPI.transfer(cs,16+dacChannel2,SPI_CONTINUE);// send command byte to DAC1 in the daisy chain.
+  SPI.transfer(cs,b3,SPI_CONTINUE);// MS data bits, DAC1
+  SPI.transfer(cs,b4);//LS 8 data bits, DAC1
+  digitalWrite(ldac,LOW);
+  delayMicroseconds(0.003);
+  digitalWrite(ldac,HIGH);
+  digitalWrite(data, LOW);
+
+  if (dacChannel1 == -16)
+  {
+   return twoByteToVoltage(b3, b4); 
+  }
+  else
+  {
+    return twoByteToVoltage(b1, b2);
+  }
+}
+
+float writeDAC(int dacChannel, float voltage)
+{
+  switch(dacChannel)
+  {
+    case 0:
+    return setValue(2, -16, voltage, 0.0);
+    break;
+
+    case 1:
+    return setValue(0, -16, voltage, 0.0);
+    break;
+
+    case 2:
+    return setValue(-16, 2, 0.0, voltage);
+    break;
+
+    case 3:
+    return setValue(-16, 0, 0.0, voltage);
+    break;
+
+    case 4:
+    return setValue(3, -16, voltage, 0.0);
+    break;
+
+    case 5:
+    return setValue(1, -16, voltage, 0.0);
+    break;
+
+    case 6:
+    return setValue(-16, 3, 0.0, voltage);
+    break;
+
+    case 7:
+    return setValue(-16, 1, 0.0, voltage);
+    break;
+
+    default:
+    break;
+  }
 }
 
 void autoRamp1(std::vector<String> DB)
@@ -214,78 +298,6 @@ void readDAC(int dacChannel)
 
     case 7:
     getValue(1, 1);
-    break;
-
-    default:
-    break;
-  }
-}
-
-
-float setValue(int dacChannel1, int dacChannel2, float v1, float v2)
-{
-  byte b1;
-  byte b2;
-  byte b3;
-  byte b4;
-  digitalWrite(data, HIGH);
-  voltageToTwoByte(v1,&b1,&b2);
-  voltageToTwoByte(v2,&b3,&b4);
-  SPI.transfer(cs,16+dacChannel1,SPI_CONTINUE); // send command byte to DAC2 in the daisy chain.
-  SPI.transfer(cs,b1,SPI_CONTINUE); // MS data bits, DAC2
-  SPI.transfer(cs,b2,SPI_CONTINUE);//LS 8 data bits, DAC2
-  SPI.transfer(cs,16+dacChannel2,SPI_CONTINUE);// send command byte to DAC1 in the daisy chain.
-  SPI.transfer(cs,b3,SPI_CONTINUE);// MS data bits, DAC1
-  SPI.transfer(cs,b4);//LS 8 data bits, DAC1
-  digitalWrite(ldac,LOW);
-  delayMicroseconds(0.003);
-  digitalWrite(ldac,HIGH);
-  digitalWrite(data, LOW);
-
-  if (dacChannel1 == -16)
-  {
-   return twoByteToVoltage(b3, b4); 
-  }
-  else
-  {
-    return twoByteToVoltage(b1, b2);
-  }
-}
-
-float writeDAC(int dacChannel, float voltage)
-{
-  switch(dacChannel)
-  {
-    case 0:
-    return setValue(2, -16, voltage, 0.0);
-    break;
-
-    case 1:
-    return setValue(0, -16, voltage, 0.0);
-    break;
-
-    case 2:
-    return setValue(-16, 2, 0.0, voltage);
-    break;
-
-    case 3:
-    return setValue(-16, 0, 0.0, voltage);
-    break;
-
-    case 4:
-    return setValue(3, -16, voltage, 0.0);
-    break;
-
-    case 5:
-    return setValue(1, -16, voltage, 0.0);
-    break;
-
-    case 6:
-    return setValue(-16, 3, 0.0, voltage);
-    break;
-
-    case 7:
-    return setValue(-16, 1, 0.0, voltage);
     break;
 
     default:
