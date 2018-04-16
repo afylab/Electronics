@@ -5,7 +5,8 @@
 #include "SPI.h" // necessary library for SPI communication
 #include <vector>
 int adc=52; //The SPI pin for the ADC
-int dac[2]={4,5};  //The SPI pin for the DAC
+const int Ndacs = 2; // not fully implemented yet
+int dac[Ndacs]={4,5};  //The SPI pin for the DAC
 int spi = 10;
 int ldac=6; //Load DAC pin for DAC. Make it LOW if not in use. 
 int reset=44 ; //Reset on ADC
@@ -74,7 +75,7 @@ void setup()
   digitalWrite(led, HIGH);
   pinMode(data, OUTPUT);
   
-  for(int i =0; i <= 3; i++)
+  for(int i =0; i <= Ndacs-1; i++)
   {
     pinMode(dac[i],OUTPUT);
     digitalWrite(dac[i],HIGH);
@@ -88,7 +89,7 @@ void setup()
   SPI.setBitOrder(adc,MSBFIRST); //correct order for AD7734.
   SPI.setBitOrder(spi,MSBFIRST); //correct order for AD5764.
   SPI.setClockDivider(adc,7);  // Maximum 12 Mhz for AD7734
-  SPI.setClockDivider(spi,6);  //Maximum check datasheet
+  SPI.setClockDivider(spi,4);  //Maximum check datasheet
   SPI.setDataMode(adc,SPI_MODE3); //This should be 3 for the AD7734
   SPI.setDataMode(spi,SPI_MODE1); //This should be 1 for the AD5764
 
@@ -706,7 +707,7 @@ void normalMode()
   for( int i = 0; i <= 1; i++)
   {
     int o;
-    for(int j=0; j<=3; j++)
+    for(int j=0; j<=Ndacs-1; j++)
     {
       dacDataSend(dac[i],0);
       digitalWrite(dac[i],LOW);
@@ -817,32 +818,32 @@ void adc_ch_full_scale_cal()
 
 void dac_ch_cal()
 {
-  for(int i=0; i<=3; i++)
+  for(int i=0; i<=Ndacs-1; i++)
   {
     OS[i]=0; // offset error
     GE[i]=1; // gain error
   }
   //set dacs to zero volts
-  for(int i=0; i<=3; i++)
+  for(int i=0; i<=Ndacs-1; i++)
   {
     dacDataSend(dac[i],0);
   }
   delay(1);
   //reads the offset of each channel
-  for(int i=0; i<=3; i++)
+  for(int i=0; i<=Ndacs-1; i++)
   {
     OS[i]=readADC(i);
   }
   
   //set dacs to 9 volts
   float ifs = 9;
-  for(int i=0; i<=3; i++)
+  for(int i=0; i<=Ndacs-1; i++)
   {
     dacDataSend(dac[i],ifs);
   }
   delay(1);
   //reads each channel and calculates the gain error
-  for(int i=0; i<=3; i++)
+  for(int i=0; i<=Ndacs-1; i++)
   {
     float nfs;
     nfs=readADC(i);
