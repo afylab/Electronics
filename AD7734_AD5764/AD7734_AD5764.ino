@@ -516,6 +516,12 @@ int bufferRampDis(std::vector<String> DB)
   int nAdcSteps = DB[NchannelsDAC*2+6].toInt();
   int nSteps=(DB[NchannelsDAC*2+3].toInt());
 
+  if (nAdcSteps > nSteps)
+  {
+    Serial.println("nAdcSteps must be larger or equal to nSteps");
+    break;
+  }
+
   std::vector<float> vi;
   std::vector<float> vf;
   float v_min = -1*DAC_FULL_SCALE;
@@ -528,8 +534,7 @@ int bufferRampDis(std::vector<String> DB)
   byte b1;
   byte b2;
   int count =0;
-  int adcCount = 1;
-  bool firstPoint = true;
+  int adcCount = 0;
   for (int j=0; j<nSteps;j++)
   {
     digitalWrite(data,HIGH);
@@ -557,23 +562,15 @@ int bufferRampDis(std::vector<String> DB)
     {
       delayMicroseconds(DB[NchannelsDAC*2+4].toInt());
     }
-    if ((adcCount == nAdcSteps) || firstPoint)
+    if (j == int(adcCount*float(nSteps-1)/float(nAdcSteps-1)))
     {
       for(int i = 0; i < NchannelsADC; i++)
       {
         rampRead(channelsADC[i]-'0', b1, b2, &b1, &b2, count,DB[NchannelsDAC*2+5].toInt());
         count+=1;
       }
-      if(firstPoint)
-      {
-        firstPoint = false;
-      }
-      else
-      {
-        adcCount=0;
-      }
+      adcCount+=1;
     }
-    adcCount+=1;
     if(Serial.available())
     {
       std::vector<String> comm;
