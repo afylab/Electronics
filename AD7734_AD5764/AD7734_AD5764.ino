@@ -519,7 +519,7 @@ int bufferRampDis(std::vector<String> DB)
   if (nAdcSteps > nSteps)
   {
     Serial.println("nAdcSteps must be larger or equal to nSteps");
-    break;
+    return 0;
   }
 
   std::vector<float> vi;
