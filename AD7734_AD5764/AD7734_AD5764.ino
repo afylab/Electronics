@@ -229,7 +229,7 @@ float getSingleReading(int adcchan)
   int statusbyte=0;
   byte o2;
   byte o3;
-  int ovr;
+  int ovr, sign;
   if(adcchan <= 3)
   {
     SPI.transfer(adc,0x38+adcchan);   // Indicates comm register to access mode register with channel
@@ -239,7 +239,8 @@ float getSingleReading(int adcchan)
     statusbyte=SPI.transfer(adc,0);   // Reads Channel 'ch' status
     o2=SPI.transfer(adc,0);           // Reads first byte
     o3=SPI.transfer(adc,0);           // Reads second byte
-    ovr=statusbyte&1;
+    ovr = statusbyte & 1;  // select bit0 of channel status register - over or underrange of analog input
+    sign = statusbyte & 2;  // select bi1 of channel status register - voltage polarity of analog input
     switch (ovr)
     {
       case 0:
@@ -251,7 +252,11 @@ float getSingleReading(int adcchan)
       break;
       
       case 1:
-      return 0.0;
+      if (sign){
+        return 10.0;
+      } else {
+        return -10.0;
+      }
       break;   
     }
   }
@@ -329,7 +334,7 @@ void readingRampAvg(int adcchan, byte b1, byte b2, byte * o1, byte * o2,int coun
 {
   Serial.flush();
   int statusbyte=0;
-  int ovr;
+  int ovr, sign;
   byte db1;
   byte db2;
   float sum=0;
@@ -353,6 +358,8 @@ void readingRampAvg(int adcchan, byte b1, byte b2, byte * o1, byte * o2,int coun
       db1=SPI.transfer(adc,0);           // Reads first byte
       db2=SPI.transfer(adc,0);           // Reads second byte
       ovr=statusbyte&1;
+      sign = statusbyte & 2;  // select bi1 of channel status register - voltage polarity of analog input
+
       if (ovr){break;}
       int decimal = twoByteToInt(db1,db2);
       float voltage = map2(decimal, 0, 65536, -10.0, 10.0);
@@ -360,8 +367,16 @@ void readingRampAvg(int adcchan, byte b1, byte b2, byte * o1, byte * o2,int coun
     }
     if(ovr)
     {
-      *o1=128;
-      *o2=0;
+      // *o1=128;
+      // *o2=0;
+      float overflow;
+      if (sign){ overflow = 10.0;
+      } else { overflow =  -10.0;
+      }
+      int decimal = map2(overflow, -10.0, 10.0, 0, 65536);
+      intToTwoByte(decimal, &db1, &db2);
+      *o1 = db1;
+      *o2 = db2;
     }
     else
     {
