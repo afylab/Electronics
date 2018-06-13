@@ -17,6 +17,9 @@ int delayUnit=0; // 0=microseconds 1=miliseconds
 
 float DAC_FULL_SCALE = 10;
 
+int chDAC[4] = {0, 1, 2, 3};  // change to reassign the port numbers
+int chADC[4] = {0, 1, 2, 3};  // change to reassign the port numbers
+
 // Calibration constans
 float OS[4]={0,0,0,0}; // offset error
 float GE[4]={1,1,1,1}; // gain error
@@ -137,16 +140,16 @@ void writeADCConversionTime(std::vector<String> DB)
   int adcChannel;
   switch(DB[1].toInt()){
     case 0:
-    adcChannel = 0;
+    adcChannel = chADC[0];
     break;
     case 1:
-    adcChannel = 1;
+    adcChannel = chADC[1];
     break;
     case 2:
-    adcChannel = 2;
+    adcChannel = chADC[2];
     break;
     case 3:
-    adcChannel = 3;
+    adcChannel = chADC[3];
     break;
 
     default:  
@@ -230,6 +233,7 @@ float getSingleReading(int adcchan)
   byte o2;
   byte o3;
   int ovr, sign;
+  float voltage;
   if(adcchan <= 3)
   {
     SPI.transfer(adc,0x38+adcchan);   // Indicates comm register to access mode register with channel
@@ -241,24 +245,18 @@ float getSingleReading(int adcchan)
     o3=SPI.transfer(adc,0);           // Reads second byte
     ovr = statusbyte & 1;  // select bit0 of channel status register - over or underrange of analog input
     sign = statusbyte & 2;  // select bi1 of channel status register - voltage polarity of analog input
-    switch (ovr)
-    {
-      case 0:
-      int decimal;
-      decimal = twoByteToInt(o2,o3);
-      float voltage;
-      voltage = map2(decimal, 0, 65536, -10.0, 10.0);
-      return voltage;
-      break;
-      
-      case 1:
-      if (sign){
-        return 10.0;
+    
+    if(ovr)
+      {
+        if (sign){ voltage = 10.0;
+                     } else { 
+                      voltage = -10.0;
+                     }
       } else {
-        return -10.0;
+        int decimal = twoByteToInt(o2,o3);
+        voltage = map2(decimal, 0, 65536, -10.0, 10.0);
       }
-      break;   
-    }
+      return voltage;
   }
 }
 
@@ -268,16 +266,16 @@ float readADC(byte DB)
   switch (adcChannel)
   {
     case 0:
-    return getSingleReading(0);
+    return getSingleReading(chADC[0]);
     break;
     case 1:
-    return getSingleReading(1);
+    return getSingleReading(chADC[1]);
     break;
     case 2:
-    return getSingleReading(2);
+    return getSingleReading(chADC[2]);
     break;
     case 3:
-    return getSingleReading(3);
+    return getSingleReading(chADC[3]);
     break;
 
     default:  
@@ -310,19 +308,19 @@ float writeDAC(int dacChannel, float voltage)
   switch(dacChannel)
   {
     case 0:
-    return dacDataSend(dacChannel,voltage/GE[0]-OS[0]);
+    return dacDataSend(chDAC[0],voltage/GE[0]-OS[0]);
     break;
 
     case 1:
-    return dacDataSend(dacChannel,voltage/GE[1]-OS[1]);
+    return dacDataSend(chDAC[1],voltage/GE[1]-OS[1]);
     break;
 
     case 2:
-    return dacDataSend(dacChannel,voltage/GE[2]-OS[2]);
+    return dacDataSend(chDAC[2],voltage/GE[2]-OS[2]);
     break;
 
     case 3:
-    return dacDataSend(dacChannel,voltage/GE[3]-OS[3]);
+    return dacDataSend(chDAC[3],voltage/GE[3]-OS[3]);
     break;
 
     default:
@@ -340,6 +338,7 @@ void readingRampAvg(int adcchan, byte b1, byte b2, byte * o1, byte * o2,int coun
   float sum=0;
   float avg;
   bool toSend = true;
+  float voltage;
   if(adcchan <= 3)
   {
     for(int i = 1; i<=nReadings; i++)
@@ -357,36 +356,27 @@ void readingRampAvg(int adcchan, byte b1, byte b2, byte * o1, byte * o2,int coun
       statusbyte=SPI.transfer(adc,0);   // Reads Channel 'ch' status
       db1=SPI.transfer(adc,0);           // Reads first byte
       db2=SPI.transfer(adc,0);           // Reads second byte
-      ovr=statusbyte&1;
-      sign = statusbyte & 2;  // select bi1 of channel status register - voltage polarity of analog input
-
-      if (ovr){break;}
-      int decimal = twoByteToInt(db1,db2);
-      float voltage = map2(decimal, 0, 65536, -10.0, 10.0);
+      ovr = statusbyte&1;
+      sign = statusbyte & 2;    // select bi1 of channel status register - voltage polarity of analog input
+      if(ovr)
+      {
+        if (sign){ voltage = 10.0;
+                     } else { 
+                      voltage = -10.0;
+                     }
+      } else {
+        int decimal = twoByteToInt(db1,db2);
+        voltage = map2(decimal, 0, 65536, -10.0, 10.0);
+      }
       sum += voltage;
     }
-    if(ovr)
-    {
-      // *o1=128;
-      // *o2=0;
-      float overflow;
-      if (sign){ overflow = 10.0;
-      } else { overflow =  -10.0;
-      }
-      int decimal = map2(overflow, -10.0, 10.0, 0, 65536);
-      intToTwoByte(decimal, &db1, &db2);
-      *o1 = db1;
-      *o2 = db2;
-    }
-    else
-    {
-      avg = sum/nReadings;
-      int decimal = map2(avg, -10.0, 10.0, 0, 65536);
-      intToTwoByte(decimal, &db1, &db2);
-      *o1=db1;
-      *o2=db2;
-    }
-  }
+
+    avg = sum/nReadings;
+    int decimal = map2(avg, -10.0, 10.0, 0, 65536);
+    intToTwoByte(decimal, &db1, &db2);
+    *o1=db1;
+    *o2=db2;
+}
 }
 
 void rampRead(byte DB,byte b1, byte b2, byte * o1, byte * o2, int count,int nReadings )
@@ -395,19 +385,19 @@ void rampRead(byte DB,byte b1, byte b2, byte * o1, byte * o2, int count,int nRea
   switch (adcChannel)
   {
     case 0:
-    readingRampAvg(0, b1 , b2, o1, o2,count,nReadings);
+    readingRampAvg(chADC[0], b1 , b2, o1, o2,count,nReadings);
     break;
     
     case 1:
-    readingRampAvg(1, b1 , b2, o1, o2,count,nReadings);
+    readingRampAvg(chADC[1], b1 , b2, o1, o2,count,nReadings);
     break;
     
     case 2:
-    readingRampAvg(2, b1 , b2, o1, o2,count,nReadings);
+    readingRampAvg(chADC[3], b1 , b2, o1, o2,count,nReadings);
     break;
     
     case 3:
-    readingRampAvg(3, b1 , b2, o1, o2,count,nReadings);
+    readingRampAvg(chADC[4], b1 , b2, o1, o2,count,nReadings);
     break;
   
     default:  
@@ -436,19 +426,19 @@ float writeDAC_buffer(int dacChannel, float voltage)
   switch(dacChannel)
   {
     case 0:
-    return dacDataSend_buffer(dacChannel,voltage/GE[0]-OS[0]);
+    return dacDataSend_buffer(chDAC[0],voltage/GE[0]-OS[0]);
     break;
 
     case 1:
-    return dacDataSend_buffer(dacChannel,voltage/GE[1]-OS[1]);
+    return dacDataSend_buffer(chDAC[1],voltage/GE[1]-OS[1]);
     break;
 
     case 2:
-    return dacDataSend_buffer(dacChannel,voltage/GE[2]-OS[2]);
+    return dacDataSend_buffer(chDAC[2],voltage/GE[2]-OS[2]);
     break;
 
     case 3:
-    return dacDataSend_buffer(dacChannel,voltage/GE[3]-OS[3]);
+    return dacDataSend_buffer(chDAC[3],voltage/GE[3]-OS[3]);
     break;
 
     default:
