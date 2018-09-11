@@ -624,14 +624,6 @@ int bufferRampDis(std::vector<String> DB)
     {
       delayMicroseconds(DB[NchannelsDAC*2+4].toInt());
     }
-    if (delayUnit)
-    {
-      delay(DB[NchannelsDAC*2+4].toInt());
-    }
-    else
-    {
-      delayMicroseconds(DB[NchannelsDAC*2+4].toInt());
-    }
     if (j == int(adcCount*float(nSteps-1)/float(nAdcSteps-1)))
     {
       for(int i = 0; i < NchannelsADC; i++)
