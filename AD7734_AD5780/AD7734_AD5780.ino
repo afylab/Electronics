@@ -5,8 +5,8 @@
 #include "SPI.h" // necessary library for SPI communication
 #include <vector>
 int adc=52; //The SPI pin for the ADC
-const int Ndacs = 2; // not fully implemented yet
-int dac[Ndacs]={4,5};  //The SPI pin for the DAC
+const int Ndacs = 4; // not fully implemented yet
+int dac[Ndacs]={5,4,2,7};  //The SPI pin for the DAC
 int spi = 10;
 int ldac=6; //Load DAC pin for DAC. Make it LOW if not in use. 
 int reset=44 ; //Reset on ADC
@@ -370,6 +370,14 @@ float writeDAC(int dacChannel, float voltage)
     return dacDataSend(dac[1],voltage/GE[1]-OS[1]);
     break;
 
+    case 2:
+    return dacDataSend(dac[2],voltage/GE[2]-OS[2]);
+    break;
+
+    case 3:
+    return dacDataSend(dac[3],voltage/GE[3]-OS[3]);
+    break;
+
     default:
     break;
   }
@@ -482,6 +490,14 @@ float writeDAC_buffer(int dacChannel, float voltage)
     return dacDataSend_buffer(dac[1],voltage/GE[1]-OS[1]);
     break;
 
+    case 2:
+    return dacDataSend_buffer(dac[2],voltage/GE[2]-OS[2]);
+    break;
+
+    case 3:
+    return dacDataSend_buffer(dac[3],voltage/GE[3]-OS[3]);
+    break;
+
     default:
     break;
   }
@@ -562,6 +578,12 @@ int bufferRampDis(std::vector<String> DB)
   int nAdcSteps = DB[NchannelsDAC*2+6].toInt();
   int nSteps=(DB[NchannelsDAC*2+3].toInt());
 
+  if (nAdcSteps > nSteps)
+  {
+    Serial.println("nAdcSteps must be larger or equal to nSteps");
+    return 0;
+  }
+
   std::vector<float> vi;
   std::vector<float> vf;
   float v_min = -1*DAC_FULL_SCALE;
@@ -574,8 +596,7 @@ int bufferRampDis(std::vector<String> DB)
   byte b1;
   byte b2;
   int count =0;
-  int adcCount = 1;
-  bool firstPoint = true;
+  int adcCount = 0;
   for (int j=0; j<nSteps;j++)
   {
     digitalWrite(data,HIGH);
@@ -603,23 +624,23 @@ int bufferRampDis(std::vector<String> DB)
     {
       delayMicroseconds(DB[NchannelsDAC*2+4].toInt());
     }
-    if ((adcCount == nAdcSteps) || firstPoint)
+    if (delayUnit)
+    {
+      delay(DB[NchannelsDAC*2+4].toInt());
+    }
+    else
+    {
+      delayMicroseconds(DB[NchannelsDAC*2+4].toInt());
+    }
+    if (j == int(adcCount*float(nSteps-1)/float(nAdcSteps-1)))
     {
       for(int i = 0; i < NchannelsADC; i++)
       {
         rampRead(channelsADC[i]-'0', b1, b2, &b1, &b2, count,DB[NchannelsDAC*2+5].toInt());
         count+=1;
       }
-      if(firstPoint)
-      {
-        firstPoint = false;
-      }
-      else
-      {
-        adcCount=0;
-      }
+      adcCount+=1;
     }
-    adcCount+=1;
     if(Serial.available())
     {
       std::vector<String> comm;
@@ -704,10 +725,10 @@ void normalMode()
 {
   digitalWrite(data,HIGH);
   int attemps = 0;
-  for( int i = 0; i <= 1; i++)
+  for( int i = 0; i <= Ndacs-1; i++)
   {
     int o;
-    for(int j=0; j<=Ndacs-1; j++)
+    for(int j=0; j<=3; j++)
     {
       dacDataSend(dac[i],0);
       digitalWrite(dac[i],LOW);
