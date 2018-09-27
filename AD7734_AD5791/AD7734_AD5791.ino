@@ -4,21 +4,23 @@
 //3/23/2018
 #include "SPI.h" // necessary library for SPI communication
 #include <vector>
-int adc=52; //The SPI pin for the ADC
-int dac[4]={4,5,2,7};  //The SPI pin for the DAC
-int spi = 10;
+int adc=10; //The SPI pin for the ADC
+int adc_sync=52;
+int dac[4]={32,30,28,26};  //The SPI pin for the DAC
+int spi = 52;
 int ldac=6; //Load DAC pin for DAC. Make it LOW if not in use. 
 int reset=44 ; //Reset on ADC
 int drdy=48; // Data is ready pin on ADC
 int led = 32;
 int data=28;//Used for trouble shooting; connect an LED between pin 28 and GND
 int err=30;
+int eeprom=24;
 const int Noperations = 21;
 String operations[Noperations] = {"NOP", "INITIALIZE", "SET", "GET_DAC", "GET_ADC", "RAMP1", "RAMP2", "BUFFER_RAMP", "BUFFER_RAMP_DIS", "RESET", "TALK", "CONVERT_TIME", "*IDN?", "*RDY?", "GET_DUNIT","SET_DUNIT", "ADC_ZERO_SC_CAL", "ADC_CH_ZERO_SC_CAL", "ADC_CH_FULL_SC_CAL", "DAC_CH_CAL", "FULL_SCALE"};
 int initialized = 0;
 int delayUnit=0; // 0=microseconds 1=miliseconds
 
-float DAC_FULL_SCALE = 10.6601;
+float DAC_FULL_SCALE = 10.0;
 
 // Calibration constans
 float OS[4]={0,0,0,0}; // offset error
@@ -73,6 +75,10 @@ void setup()
   pinMode(led, OUTPUT);  //Used for blinking indicator LED
   digitalWrite(led, HIGH);
   pinMode(data, OUTPUT);
+  pinMode(eeprom, OUTPUT);
+  digitalWrite(eeprom, HIGH);
+  pinMode(adc_sync, OUTPUT);
+  digitalWrite(adc_sync, HIGH);
   
   for(int i =0; i <= 3; i++)
   {
@@ -126,17 +132,29 @@ void waitDRDY() {while (digitalRead(drdy)==HIGH){}}
 
 void resetADC() //Resets the ADC, and sets the range to default +-10 V 
 {
+  SPI.transfer(adc,0);
   digitalWrite(data,HIGH);digitalWrite(reset,HIGH);digitalWrite(reset,LOW);digitalWrite(reset,HIGH);
+  digitalWrite(adc_sync, LOW);
   SPI.transfer(adc,0x28);
+  digitalWrite(adc_sync, HIGH);
+  digitalWrite(adc_sync, LOW);
   SPI.transfer(adc,0);
+  digitalWrite(adc_sync, HIGH);
+  digitalWrite(adc_sync, LOW);
   SPI.transfer(adc,0x2A);
+  digitalWrite(adc_sync, HIGH);
+  digitalWrite(adc_sync, LOW);
   SPI.transfer(adc,0);
+  digitalWrite(adc_sync, HIGH);
 }
 
 void talkADC(std::vector<String> DB)
 {
   int comm;
+  SPI.transfer(adc,0);
+  digitalWrite(adc_sync, LOW);
   comm=SPI.transfer(adc,DB[1].toInt());
+  digitalWrite(adc_sync, HIGH);
   Serial.println(comm);
   Serial.flush();
 }
@@ -147,12 +165,21 @@ void writeADCConversionTime(std::vector<String> DB)
   byte cr;
 
   byte fw = ((byte)(((DB[2].toFloat()*6.144-249)/128)+0.5))|128;
-
+  
+  SPI.transfer(adc,0);
+  digitalWrite(adc_sync, LOW);
   SPI.transfer(adc,0x30+adcChannel);
+  digitalWrite(adc_sync, HIGH);
+  digitalWrite(adc_sync, LOW);
   SPI.transfer(adc,fw);
+  digitalWrite(adc_sync, HIGH);
   delayMicroseconds(100);
+  digitalWrite(adc_sync, LOW);
   SPI.transfer(adc,0x70+adcChannel);
+  digitalWrite(adc_sync, HIGH);
+  digitalWrite(adc_sync, LOW);
   cr=SPI.transfer(adc,0); //Read back the CT register
+  digitalWrite(adc_sync, HIGH);
 
   int convtime = ((int)(((cr&127)*128+249)/6.144)+0.5);
   Serial.println(convtime);
@@ -224,13 +251,26 @@ float getSingleReading(int adcchan)
   int ovr;
   if(adcchan <= 3)
   {
+    SPI.transfer(adc,0);
+    digitalWrite(adc_sync, LOW);
     SPI.transfer(adc,0x38+adcchan);   // Indicates comm register to access mode register with channel
+    digitalWrite(adc_sync, HIGH);
+    digitalWrite(adc_sync, LOW);
     SPI.transfer(adc,0x48);           // Indicates mode register to start single convertion in dump mode
+    digitalWrite(adc_sync, HIGH);
     waitDRDY();                       // Waits until convertion finishes
+    digitalWrite(adc_sync, LOW);
     SPI.transfer(adc,0x48+adcchan);   // Indcates comm register to read data channel data register
+    digitalWrite(adc_sync, HIGH);
+    digitalWrite(adc_sync, LOW);
     statusbyte=SPI.transfer(adc,0);   // Reads Channel 'ch' status
+    digitalWrite(adc_sync, HIGH);
+    digitalWrite(adc_sync, LOW);
     o2=SPI.transfer(adc,0);           // Reads first byte
+    digitalWrite(adc_sync, HIGH);
+    digitalWrite(adc_sync, LOW);
     o3=SPI.transfer(adc,0);           // Reads second byte
+    digitalWrite(adc_sync, HIGH);
     ovr=statusbyte&1;
     switch (ovr)
     {
@@ -379,8 +419,13 @@ void readingRampAvg(int adcchan, byte b1, byte b2, byte * o1, byte * o2,int coun
   {
     for(int i = 1; i<=nReadings; i++)
     {
+      SPI.transfer(adc,0);
+      digitalWrite(adc_sync, LOW);
       SPI.transfer(adc,0x38+adcchan);   // Indicates comm register to access mode register with channel
+      digitalWrite(adc_sync, HIGH);
+      digitalWrite(adc_sync, LOW);
       SPI.transfer(adc,0x48);           // Indicates mode register to start single convertion in dump mode
+      digitalWrite(adc_sync, HIGH);
       if (count>0 && toSend)
       {
         Serial.write(b1);                 // Sends previous reading while it is waiting for new reading
@@ -388,10 +433,18 @@ void readingRampAvg(int adcchan, byte b1, byte b2, byte * o1, byte * o2,int coun
         toSend = false;
       }
       waitDRDY();                       // Waits until convertion finishes
+      digitalWrite(adc_sync, LOW);
       SPI.transfer(adc,0x48+adcchan);   // Indcates comm register to read data channel data register
+      digitalWrite(adc_sync, HIGH);
+      digitalWrite(adc_sync, LOW);
       statusbyte=SPI.transfer(adc,0);   // Reads Channel 'ch' status
+      digitalWrite(adc_sync, HIGH);
+      digitalWrite(adc_sync, LOW);
       db1=SPI.transfer(adc,0);           // Reads first byte
+      digitalWrite(adc_sync, HIGH);
+      digitalWrite(adc_sync, LOW);
       db2=SPI.transfer(adc,0);           // Reads second byte
+      digitalWrite(adc_sync, HIGH);
       ovr=statusbyte&1;
       if (ovr){break;}
       int decimal = twoByteToInt(db1,db2);
@@ -682,7 +735,7 @@ void readDAC(int channelDAC)
   int o2;
   int o3;
   float voltage;
-  
+  SPI.transfer(spi,0);
   digitalWrite(channelDAC,LOW);
   SPI.transfer(spi,144); // send command byte to DAC
   SPI.transfer(spi,0); // MS data bits, DAC2
@@ -771,46 +824,85 @@ void setUnit(int unit)
 
 void adc_zero_scale_cal()
 {
+  SPI.transfer(adc,0);
+  digitalWrite(adc_sync, LOW);
   SPI.transfer(adc,0x38);   // Indicates comm register to access mode register
+  digitalWrite(adc_sync, HIGH);
+  digitalWrite(adc_sync, LOW);
   SPI.transfer(adc,0x80);
+  digitalWrite(adc_sync, HIGH);
   waitDRDY();
 }
 
 void adc_ch_zero_scale_cal()
 {
+  SPI.transfer(adc,0);
+  digitalWrite(adc_sync, LOW);
   SPI.transfer(adc,0x38);   // Indicates comm register to access mode register
+  digitalWrite(adc_sync, HIGH);
+  digitalWrite(adc_sync, LOW);
   SPI.transfer(adc,0xC0);
+  digitalWrite(adc_sync, HIGH);
   waitDRDY();
 
+  digitalWrite(adc_sync, LOW);
   SPI.transfer(adc,0x38+1);   // Indicates comm register to access mode register
+  digitalWrite(adc_sync, HIGH);
+  digitalWrite(adc_sync, LOW);
   SPI.transfer(adc,0xC0);
+  digitalWrite(adc_sync, HIGH);
   waitDRDY();
 
+  digitalWrite(adc_sync, LOW);
   SPI.transfer(adc,0x38+2);   // Indicates comm register to access mode register
+  digitalWrite(adc_sync, HIGH);
+  digitalWrite(adc_sync, LOW);
   SPI.transfer(adc,0xC0);
+  digitalWrite(adc_sync, HIGH);
   waitDRDY();
 
+  digitalWrite(adc_sync, LOW);
   SPI.transfer(adc,0x38+3);   // Indicates comm register to access mode register
+  digitalWrite(adc_sync, HIGH);
+  digitalWrite(adc_sync, LOW);
   SPI.transfer(adc,0xC0);
+  digitalWrite(adc_sync, HIGH);
   waitDRDY();
 }
 
 void adc_ch_full_scale_cal()
 {
+  SPI.transfer(adc,0);
+  digitalWrite(adc_sync, LOW);
   SPI.transfer(adc,0x38);   // Indicates comm register to access mode register
+  digitalWrite(adc_sync, HIGH);
+  digitalWrite(adc_sync, LOW);
   SPI.transfer(adc,0xE0);
+  digitalWrite(adc_sync, HIGH);
   waitDRDY();
 
+  digitalWrite(adc_sync, LOW);
   SPI.transfer(adc,0x38+1);   // Indicates comm register to access mode register
+  digitalWrite(adc_sync, HIGH);
+  digitalWrite(adc_sync, LOW);
   SPI.transfer(adc,0xE0);
+  digitalWrite(adc_sync, HIGH);
   waitDRDY();
 
+  digitalWrite(adc_sync, LOW);
   SPI.transfer(adc,0x38+2);   // Indicates comm register to access mode register
+  digitalWrite(adc_sync, HIGH);
+  digitalWrite(adc_sync, LOW);
   SPI.transfer(adc,0xE0);
+  digitalWrite(adc_sync, HIGH);
   waitDRDY();
 
+  digitalWrite(adc_sync, LOW);
   SPI.transfer(adc,0x38+3);   // Indicates comm register to access mode register
+  digitalWrite(adc_sync, HIGH);
+  digitalWrite(adc_sync, LOW);
   SPI.transfer(adc,0xE0);
+  digitalWrite(adc_sync, HIGH);
   waitDRDY();
 }
 
